@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { BIBLE_BOOKS } from "../data/bible";
+import type { Account } from "../lib/auth";
 import { moodEmoji } from "../data/moods";
 import type { SyncStatus } from "../lib/sessions";
 import {
@@ -18,16 +20,130 @@ const SYNC_LABEL: Record<SyncStatus, string> = {
   error: "동기화 실패 · 이 기기에 저장됨",
 };
 
+function KakaoSymbol() {
+  return (
+    <svg viewBox="0 0 24 24" className="w-[18px] h-[18px]" aria-hidden="true">
+      <path
+        fill="#000"
+        d="M12 3C6.48 3 2 6.54 2 10.9c0 2.82 1.87 5.29 4.69 6.69l-.96 3.52c-.08.3.26.54.52.37l4.2-2.78c.51.05 1.03.08 1.55.08 5.52 0 10-3.54 10-7.88S17.52 3 12 3z"
+      />
+    </svg>
+  );
+}
+
+/** 카카오 계정 연결 / 로그인 상태 카드 */
+function AccountCard({
+  account,
+  error,
+  onConnectKakao,
+  onSignOut,
+}: {
+  account: Account | null;
+  error: string | null;
+  onConnectKakao: () => void;
+  onSignOut: () => void;
+}) {
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const linked = account && !account.isAnonymous;
+
+  if (linked) {
+    return (
+      <div className="mx-6 mb-3 bg-[#0e0e0e] border border-[#1a1a1a] rounded-2xl p-4">
+        <div className="flex items-center gap-3">
+          {account.avatarUrl ? (
+            <img src={account.avatarUrl} alt="" className="w-10 h-10 rounded-full object-cover" />
+          ) : (
+            <div className="w-10 h-10 rounded-full bg-[#FEE500] flex items-center justify-center">
+              <KakaoSymbol />
+            </div>
+          )}
+          <div className="flex-1 min-w-0">
+            <div className="font-semibold text-sm truncate">{account.name ?? "카카오 사용자"}</div>
+            <div className="text-[#555] text-xs mt-0.5">카카오 계정 연결됨 · 모든 기기에서 동기화</div>
+          </div>
+          {!confirming && (
+            <button
+              onClick={() => setConfirming(true)}
+              className="text-[#555] text-xs hover:text-[#888] transition-colors shrink-0"
+            >
+              로그아웃
+            </button>
+          )}
+        </div>
+        {confirming && (
+          <div className="mt-3 pt-3 border-t border-[#1a1a1a]">
+            <div className="text-[#777] text-xs leading-relaxed mb-3">
+              이 기기에서 기록이 사라지고, 다시 로그인하면 그대로 불러옵니다.
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setConfirming(false)}
+                className="flex-1 py-2 rounded-lg border border-[#1e1e1e] text-[#777] text-xs font-semibold"
+              >
+                취소
+              </button>
+              <button
+                onClick={() => {
+                  setConfirming(false);
+                  onSignOut();
+                }}
+                className="flex-1 py-2 rounded-lg bg-[#1e1e1e] text-white text-xs font-semibold"
+              >
+                로그아웃
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="mx-6 mb-3 bg-[#0e0e0e] border border-[#1a1a1a] rounded-2xl p-5">
+      <div className="text-[#c5ff50] text-[10px] font-bold tracking-[0.22em] uppercase mb-1.5">
+        계정 연결
+      </div>
+      <div className="text-sm font-semibold">기록을 안전하게 보관하세요</div>
+      <div className="text-[#555] text-xs mt-1 leading-relaxed">
+        카카오 계정을 연결하면 지금까지의 기록이 그대로 유지되고, 다른 기기에서도 이어서 볼 수 있어요.
+      </div>
+      <button
+        onClick={async () => {
+          setBusy(true);
+          await onConnectKakao();
+          setBusy(false);
+        }}
+        disabled={busy}
+        className="mt-4 w-full h-12 rounded-xl bg-[#FEE500] text-black/85 text-[15px] font-semibold flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-60"
+      >
+        <KakaoSymbol />
+        {busy ? "카카오로 이동 중…" : "카카오 로그인"}
+      </button>
+      {error && <div className="text-[#ff6b6b] text-xs mt-2">{error}</div>}
+    </div>
+  );
+}
+
 export default function DashboardScreen({
   sessions,
   syncStatus,
+  account,
+  authError,
   onBack,
   onOpenSession,
+  onConnectKakao,
+  onSignOut,
 }: {
   sessions: Session[];
   syncStatus: SyncStatus;
+  /** Supabase 미설정이면 undefined → 계정 카드 숨김 */
+  account?: Account | null;
+  authError: string | null;
   onBack: () => void;
   onOpenSession: (s: Session) => void;
+  onConnectKakao: () => void;
+  onSignOut: () => void;
 }) {
   const streak = calcStreak(sessions);
   const totalSec = sessions.reduce((s, x) => s + x.duration, 0);
@@ -83,6 +199,15 @@ export default function DashboardScreen({
           ← 뒤로
         </button>
       </div>
+
+      {account !== undefined && (
+        <AccountCard
+          account={account}
+          error={authError}
+          onConnectKakao={onConnectKakao}
+          onSignOut={onSignOut}
+        />
+      )}
 
       {/* Streak hero */}
       <div className="mx-6 mb-3 bg-[#0e0e0e] border border-[#1a1a1a] rounded-2xl p-5 flex items-center gap-5">

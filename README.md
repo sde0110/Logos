@@ -28,6 +28,28 @@ Vercel 마켓플레이스로 만든 Supabase 프로젝트 `logos-db`(서울 리�
 - Authentication에서 **Anonymous sign-ins**를 켜 두었습니다. 브라우저마다 익명 계정이 하나씩 생기고, 로컬 기록은 서버와 자동으로 병합·업로드됩니다. 업로드에 실패한 기록은 다음 접속 때 다시 올립니다.
 - 환경 변수가 없으면 브라우저 localStorage에만 저장됩니다.
 
+### 카카오 로그인 (계정 연동)
+
+대시보드의 **카카오 로그인** 버튼으로 동작합니다.
+
+- 익명 사용자가 누르면 `linkIdentity`로 **지금 계정에 카카오를 연결**합니다. 사용자 id가 그대로라 기록도 그대로 남습니다.
+- 그 카카오 계정이 이미 다른 기기에서 쓰이고 있으면(`identity_already_exists`) 그 계정으로 로그인합니다. 이 기기의 기록은 새 id로 복사해 기존 계정에 합칩니다.
+- 로그아웃하면 이 기기의 로컬 기록을 비우고 새 익명 계정으로 시작합니다. 서버 기록은 그대로 있어서 다시 로그인하면 불러옵니다.
+
+필요한 설정:
+
+1. **Kakao Developers**
+   - 앱을 만든 뒤 REST API 키를 확인합니다.
+   - Kakao Login Redirect URI: `https://urgizmyvekrkdogzrpjy.supabase.co/auth/v1/callback`
+   - Client Secret을 발급하고 활성화합니다.
+   - 카카오 로그인 상태를 ON으로 켭니다.
+   - 동의항목: 닉네임, 프로필 사진(이메일은 비즈 앱일 때만 가능)
+2. **Supabase → Authentication**
+   - Providers → Kakao: 켜고, REST API 키와 Client Secret을 넣고, **Allow users without an email**을 켭니다.
+   - **Allow manual linking**을 켭니다.
+   - URL Configuration → Site URL: `https://logos-livid-nu.vercel.app`
+   - Redirect URLs: `https://logos-livid-nu.vercel.app/**`, `http://localhost:5173/**`, `http://localhost:4173/**`
+
 ## Vercel 배포
 
 - GitHub 저장소 `sde0110/Logos`가 Vercel 프로젝트 `logos`에 연결돼 있습니다. `main`에 push하면 프로덕션에, 다른 브랜치나 PR은 미리보기 주소에 자동으로 배포됩니다.

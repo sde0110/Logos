@@ -9,7 +9,13 @@ const key = (env.VITE_SUPABASE_ANON_KEY ??
 export const supabase =
   url && key
     ? createClient(url, key, {
-        auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false },
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          // 카카오 로그인 후 돌아온 ?code= 를 자동으로 세션으로 교환
+          detectSessionInUrl: true,
+          flowType: "pkce",
+        },
       })
     : null;
 

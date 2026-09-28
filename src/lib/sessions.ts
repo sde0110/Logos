@@ -1,5 +1,6 @@
 import type { Session } from "../types";
 import { ensureUserId, supabase } from "./supabase";
+import { uuid } from "./utils";
 
 const STORAGE_KEY = "logos_v1_sessions";
 
@@ -63,31 +64,50 @@ const fromRow = (r: Row): Session => ({
   createdAt: r.created_at,
 });
 
+const COLUMNS =
+  "id,read_on,book_index,from_chapter,to_chapter,from_verse,to_verse,duration_seconds,mood,created_at";
+
+async function fetchRemote(): Promise<Session[]> {
+  const { data, error } = await supabase!
+    .from("reading_logs")
+    .select(COLUMNS)
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  return (data as Row[]).map(fromRow);
+}
+
 /** 서버 기록과 로컬 기록을 합치고, 서버에 없는 로컬 기록은 업로드 */
 export async function syncSessions(local: Session[]): Promise<Session[] | null> {
   if (!supabase) return null;
   const userId = await ensureUserId();
   if (!userId) return null;
 
-  const { data, error } = await supabase
-    .from("reading_logs")
-    .select("id,read_on,book_index,from_chapter,to_chapter,from_verse,to_verse,duration_seconds,mood,created_at")
-    .order("created_at", { ascending: true });
-  if (error) throw error;
-
-  const remote = (data as Row[]).map(fromRow);
+  let remote = await fetchRemote();
   const remoteIds = new Set(remote.map((s) => s.id));
   const missing = local.filter((s) => !remoteIds.has(s.id));
+
   if (missing.length) {
-    const { error: upErr } = await supabase
+    // 같은 id가 다른 계정(예: 로그인 전 익명 계정)에 있으면 RLS 때문에 덮어쓸 수 없으므로 건너뛴다
+    const { error } = await supabase
       .from("reading_logs")
-      .upsert(missing.map((s) => toRow(s, userId)));
-    if (upErr) throw upErr;
+      .upsert(missing.map((s) => toRow(s, userId)), { onConflict: "id", ignoreDuplicates: true });
+    if (error) throw error;
+    remote = await fetchRemote();
+
+    // 건너뛴 기록은 새 id로 복사해 현재 계정으로 옮긴다
+    const nowIds = new Set(remote.map((s) => s.id));
+    const foreign = missing.filter((s) => !nowIds.has(s.id));
+    if (foreign.length) {
+      const { error: copyErr } = await supabase
+        .from("reading_logs")
+        .insert(foreign.map((s) => toRow({ ...s, id: uuid() }, userId)));
+      if (copyErr) throw copyErr;
+      remote = await fetchRemote();
+    }
   }
 
-  const merged = [...remote, ...missing].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-  saveLocalSessions(merged);
-  return merged;
+  saveLocalSessions(remote);
+  return remote;
 }
 
 export async function pushSession(s: Session) {
