@@ -18,21 +18,21 @@ npm run build      # dist/ 생성
 - **공유 카드**: 배경 사진을 올리고 템플릿 4종을 고를 수 있으며, 글자색(밝게/어둡게)과 오버레이 투명도를 조절합니다. 2160×2160 PNG로 저장되며, 모바일에서는 공유 시트로, 데스크톱에서는 파일로 다운로드됩니다.
 - **대시보드**: 연속 일수, 이번 주 기록, 월별 읽기 시간(최근 6개월), 총 시간, 읽은 장 수, 완독한 권 수, 최근 기록을 보여 줍니다. 기록을 누르면 그 기록으로 카드를 다시 만들 수 있습니다.
 
-## Supabase 연결 (선택)
+## Supabase 연결
 
-환경 변수가 없으면 브라우저 localStorage에만 저장됩니다.
+Vercel 마켓플레이스로 만든 Supabase 프로젝트 `logos-db`(서울 리전)가 `logos` Vercel 프로젝트에 연결돼 있습니다.
 
-1. Supabase 대시보드 → Authentication → Sign In / Providers에서 **Anonymous sign-ins**를 활성화합니다.
-2. SQL Editor에서 `supabase/migrations/20260928000001_reading_logs.sql`을 실행합니다.
-3. `.env.example`을 `.env`로 복사해 `VITE_SUPABASE_URL`과 `VITE_SUPABASE_ANON_KEY`를 채웁니다.
-
-익명 로그인으로 브라우저마다 계정이 하나씩 생기고, 로컬 기록은 서버와 자동으로 병합·업로드됩니다. 업로드에 실패한 기록은 다음 접속 때 다시 올립니다.
+- 환경 변수는 Vercel이 자동으로 넣어 줍니다. 앱은 공개 값인 `NEXT_PUBLIC_SUPABASE_URL`과 `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`만 번들에 포함합니다(`vite.config.ts`의 `envPrefix`). 직접 지정하려면 `VITE_SUPABASE_URL`과 `VITE_SUPABASE_ANON_KEY`를 쓰면 되고, 이 값이 우선합니다.
+- 로컬 개발 환경에서는 `vercel env pull .env.local`로 변수를 받아오면 됩니다.
+- 스키마는 `supabase/migrations/20260928000001_reading_logs.sql`에 있고, 이미 적용돼 있습니다. RLS가 켜져 있어 사용자는 자기 기록만 볼 수 있습니다.
+- Authentication에서 **Anonymous sign-ins**를 켜 두었습니다. 브라우저마다 익명 계정이 하나씩 생기고, 로컬 기록은 서버와 자동으로 병합·업로드됩니다. 업로드에 실패한 기록은 다음 접속 때 다시 올립니다.
+- 환경 변수가 없으면 브라우저 localStorage에만 저장됩니다.
 
 ## Vercel 배포
 
-- **GitHub 연동**: 저장소를 Vercel에 Import할 때 **Root Directory를 `web`**으로 지정합니다. Framework는 Vite로 자동 인식됩니다.
-- **CLI**: `web/` 폴더에서 `npx vercel`(미리보기) 또는 `npx vercel --prod`를 실행합니다.
-- Supabase를 쓰려면 Vercel 프로젝트 Settings → Environment Variables에 위 두 값을 넣고 다시 배포합니다.
+- GitHub 저장소 `sde0110/Logos`가 Vercel 프로젝트 `logos`에 연결돼 있습니다. `main`에 push하면 프로덕션에, 다른 브랜치나 PR은 미리보기 주소에 자동으로 배포됩니다.
+- 직접 배포하려면 `vercel`(미리보기) 또는 `vercel --prod`를 실행합니다.
+- 프로덕션 주소: https://logos-livid-nu.vercel.app
 
 ## 참고
 
