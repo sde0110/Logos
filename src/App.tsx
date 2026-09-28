@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { connectKakao, handleAuthRedirect, signOut, toAccount, type Account } from "./lib/auth";
+import { connectKakao, handleKakaoCallback, isKakaoConfigured, signOut, toAccount, type Account } from "./lib/auth";
 import { loadLocalSessions, pushSession, saveLocalSessions, syncSessions, type SyncStatus } from "./lib/sessions";
 import { supabase } from "./lib/supabase";
 import { calcStreak, todayStr, uuid } from "./lib/utils";
@@ -77,11 +77,15 @@ export default function App() {
     const { data } = supabase.auth.onAuthStateChange((_event, session) => {
       setAccount(toAccount(session?.user));
     });
-    handleAuthRedirect().then(({ redirecting, error }) => {
-      if (redirecting) return;
-      if (error) setAuthError(error);
-      runSync();
-    });
+    handleKakaoCallback()
+      .catch((err) => {
+        console.warn("[LOGOS] 카카오 로그인 처리 실패", err);
+        return { handled: true, error: "카카오 로그인에 실패했습니다." };
+      })
+      .then(({ error }) => {
+        if (error) setAuthError(error);
+        runSync();
+      });
     return () => data.subscription.unsubscribe();
   }, [runSync]);
 
@@ -183,7 +187,7 @@ export default function App() {
           <DashboardScreen
             sessions={sessions}
             syncStatus={syncStatus}
-            account={supabase ? account : undefined}
+            account={isKakaoConfigured ? account : undefined}
             authError={authError}
             onConnectKakao={handleConnectKakao}
             onSignOut={handleSignOut}

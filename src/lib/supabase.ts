@@ -12,9 +12,8 @@ export const supabase =
         auth: {
           persistSession: true,
           autoRefreshToken: true,
-          // 카카오 로그인 후 돌아온 ?code= 를 자동으로 세션으로 교환
-          detectSessionInUrl: true,
-          flowType: "pkce",
+          // 카카오 콜백의 ?code= 는 lib/auth.ts가 직접 처리하므로 Supabase가 가로채지 않게 한다
+          detectSessionInUrl: false,
         },
       })
     : null;
