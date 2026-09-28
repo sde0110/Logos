@@ -132,4 +132,9 @@ export async function deleteAnonymousLeftovers(userId: string, accessToken: stri
     headers: { apikey: key, Authorization: `Bearer ${accessToken}` },
   });
   if (!res.ok) throw new Error(`익명 기록 정리 실패 (${res.status})`);
+  // 이전 익명 세션을 끝내 두면 DB의 정리 작업(cleanup_anonymous_users)이 하루 뒤 계정을 삭제한다
+  await fetch(`${url}/auth/v1/logout?scope=local`, {
+    method: "POST",
+    headers: { apikey: key, Authorization: `Bearer ${accessToken}` },
+  }).catch(() => {});
 }
