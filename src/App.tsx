@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { connectKakao, handleKakaoCallback, isKakaoConfigured, signOut, toAccount, type Account } from "./lib/auth";
-import { loadLocalSessions, pushSession, saveLocalSessions, syncSessions, type SyncStatus } from "./lib/sessions";
+import { deleteAnonymousLeftovers, loadLocalSessions, pushSession, saveLocalSessions, syncSessions, type SyncStatus } from "./lib/sessions";
 import { supabase } from "./lib/supabase";
 import { calcStreak, todayStr, uuid } from "./lib/utils";
 import CompleteScreen from "./screens/CompleteScreen";
@@ -56,19 +56,21 @@ export default function App() {
 
   // 동기화 요청이 겹치면 마지막 요청 결과만 반영
   const syncSeq = useRef(0);
-  const runSync = useCallback(() => {
-    if (!supabase) return;
+  const runSync = useCallback((): Promise<boolean> => {
+    if (!supabase) return Promise.resolve(false);
     const seq = ++syncSeq.current;
     setSyncStatus("syncing");
-    syncSessions(loadLocalSessions())
+    return syncSessions(loadLocalSessions())
       .then((merged) => {
-        if (seq !== syncSeq.current || !merged) return;
+        if (seq !== syncSeq.current || !merged) return false;
         setSessions(merged);
         setSyncStatus("synced");
+        return true;
       })
       .catch((err) => {
         console.warn("[LOGOS] Supabase 동기화 실패", err);
         if (seq === syncSeq.current) setSyncStatus("error");
+        return false;
       });
   }, []);
 
@@ -78,13 +80,19 @@ export default function App() {
       setAccount(toAccount(session?.user));
     });
     handleKakaoCallback()
-      .catch((err) => {
+      .catch((err): Awaited<ReturnType<typeof handleKakaoCallback>> => {
         console.warn("[LOGOS] 카카오 로그인 처리 실패", err);
         return { handled: true, error: "카카오 로그인에 실패했습니다." };
       })
-      .then(({ error }) => {
+      .then(async ({ error, previousAnonymous }) => {
         if (error) setAuthError(error);
-        runSync();
+        const merged = await runSync();
+        // 기록이 카카오 계정으로 옮겨진 것을 확인한 뒤에만 익명 계정의 원본을 지운다
+        if (merged && previousAnonymous) {
+          deleteAnonymousLeftovers(previousAnonymous.userId, previousAnonymous.accessToken).catch((err) =>
+            console.warn("[LOGOS] 이전 익명 기록 정리 실패", err)
+          );
+        }
       });
     return () => data.subscription.unsubscribe();
   }, [runSync]);

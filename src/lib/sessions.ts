@@ -117,3 +117,19 @@ export async function pushSession(s: Session) {
   const { error } = await supabase.from("reading_logs").upsert(toRow(s, userId));
   if (error) throw error;
 }
+
+/** 카카오 계정으로 기록을 옮긴 뒤, 이전 익명 계정에 남은 원본 기록을 그 계정의 토큰으로 지운다 */
+export async function deleteAnonymousLeftovers(userId: string, accessToken: string) {
+  const url = import.meta.env.VITE_SUPABASE_URL ?? import.meta.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key =
+    import.meta.env.VITE_SUPABASE_ANON_KEY ??
+    import.meta.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
+    import.meta.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !key) return;
+  // RLS 때문에 이 토큰으로는 그 익명 계정 자신의 기록만 지울 수 있다
+  const res = await fetch(`${url}/rest/v1/reading_logs?user_id=eq.${encodeURIComponent(userId)}`, {
+    method: "DELETE",
+    headers: { apikey: key, Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) throw new Error(`익명 기록 정리 실패 (${res.status})`);
+}

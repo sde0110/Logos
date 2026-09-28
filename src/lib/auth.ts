@@ -73,12 +73,25 @@ const takePending = (): Pending | null => {
 
 let callbackHandled = false;
 
+/** 카카오 로그인 직전의 익명 계정. 기록을 카카오 계정으로 옮긴 뒤 이 토큰으로 원본을 지운다 */
+export interface PreviousAnonymous {
+  userId: string;
+  accessToken: string;
+}
+
 /**
- * 카카오에서 돌아온 ?code=&state= 를 처리한다.
- * - 익명 사용자: 지금 계정에 카카오를 연결(linkIdentity) → 기록 그대로 유지
- * - 이미 다른 사용자에 연결된 카카오 계정: 그 계정으로 로그인(이 기기 기록은 동기화 때 합쳐짐)
+ * 카카오에서 돌아온 ?code=&state= 를 처리해 카카오 계정으로 로그인한다.
+ *
+ * 익명 계정에 linkIdentity로 연결하지 않는 이유: Supabase Auth는 이메일 없는 계정에 신원을 연결할 때
+ * 연결한 신원의 이메일로 확인 메일을 보내려 하는데, 카카오 ID 토큰에는 이메일이 없어
+ * email_address_invalid로 실패한다. 대신 카카오로 로그인하고(이메일 없는 가입 허용 설정을 따름),
+ * 이 기기의 기록은 동기화(syncSessions) 때 카카오 계정으로 옮긴다.
  */
-export async function handleKakaoCallback(): Promise<{ handled: boolean; error?: string }> {
+export async function handleKakaoCallback(): Promise<{
+  handled: boolean;
+  error?: string;
+  previousAnonymous?: PreviousAnonymous;
+}> {
   if (!supabase || callbackHandled) return { handled: false };
   const query = new URLSearchParams(window.location.search);
   const code = query.get("code");
@@ -119,25 +132,16 @@ export async function handleKakaoCallback(): Promise<{ handled: boolean; error?:
   };
 
   const { data } = await supabase.auth.getSession();
-  if (data.session?.user.is_anonymous) {
-    const { error } = await supabase.auth.linkIdentity(credentials);
-    if (!error) {
-      // 연결된 카카오 프로필이 user 객체에 반영되도록 최신 정보로 갱신
-      await supabase.auth.refreshSession();
-      return { handled: true };
-    }
-    if (error.code !== "identity_already_exists") {
-      console.warn("[LOGOS] 카카오 계정 연결 실패", error);
-      return { handled: true, error: `카카오 계정 연결에 실패했습니다. (${error.code ?? error.message})` };
-    }
-  }
+  const prev = data.session?.user.is_anonymous
+    ? { userId: data.session.user.id, accessToken: data.session.access_token }
+    : undefined;
 
   const { error } = await supabase.auth.signInWithIdToken(credentials);
   if (error) {
     console.warn("[LOGOS] 카카오 로그인 실패", error);
     return { handled: true, error: `카카오 로그인에 실패했습니다. (${error.code ?? error.message})` };
   }
-  return { handled: true };
+  return { handled: true, previousAnonymous: prev };
 }
 
 export async function signOut() {
