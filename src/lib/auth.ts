@@ -105,7 +105,10 @@ export async function handleKakaoCallback(): Promise<{ handled: boolean; error?:
   const tokens = await res.json().catch(() => ({}));
   if (!res.ok || !tokens.id_token) {
     console.warn("[LOGOS] 카카오 토큰 교환 실패", tokens);
-    return { handled: true, error: "카카오 로그인에 실패했습니다. 잠시 후 다시 시도해 주세요." };
+    return {
+      handled: true,
+      error: `카카오 로그인에 실패했습니다. 잠시 후 다시 시도해 주세요. (${tokens.error_code ?? tokens.error ?? res.status})`,
+    };
   }
 
   const credentials = {
@@ -125,14 +128,14 @@ export async function handleKakaoCallback(): Promise<{ handled: boolean; error?:
     }
     if (error.code !== "identity_already_exists") {
       console.warn("[LOGOS] 카카오 계정 연결 실패", error);
-      return { handled: true, error: "카카오 계정 연결에 실패했습니다." };
+      return { handled: true, error: `카카오 계정 연결에 실패했습니다. (${error.code ?? error.message})` };
     }
   }
 
   const { error } = await supabase.auth.signInWithIdToken(credentials);
   if (error) {
     console.warn("[LOGOS] 카카오 로그인 실패", error);
-    return { handled: true, error: "카카오 로그인에 실패했습니다." };
+    return { handled: true, error: `카카오 로그인에 실패했습니다. (${error.code ?? error.message})` };
   }
   return { handled: true };
 }
